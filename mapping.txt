@@ -1,0 +1,404 @@
+// Mapping
+
+PUT app.log
+{
+  "mappings": {
+    "dynamic_templates": [
+      {
+        "extension_string_as_keyword": {
+          "match_mapping_type": "string",
+          "path_match": "extension.*",
+          "mapping": {
+            "type": "text",
+            "fields": {
+              "keyword": {
+                "type":  "keyword",
+                "ignore_above": 256
+              }
+            }
+          }
+        }
+      },
+      {
+        "extension_long_as_keyword": {
+          "match_mapping_type": "long",
+          "path_match": "extension.*",
+          "mapping": {
+            "type": "text",
+            "fields": {
+              "keyword": {
+                "type":  "keyword",
+                "ignore_above": 256
+              }
+            }
+          }
+        }
+      },
+      {
+        "extension_double_as_keyword": {
+          "match_mapping_type": "double",
+          "path_match": "extension.*",
+          "mapping": {
+            "type": "text",
+            "fields": {
+              "keyword": {
+                "type":  "keyword",
+                "ignore_above": 256
+              }
+            }
+          }
+        }
+      }
+    ],
+    "properties": {
+        "message": {
+            "type": "text"
+        },
+        "timestamp": {
+            "type": "date_nanos"
+        },
+        "extension": {
+            "type": "object",
+            "dynamic": true
+        }
+    }
+  }
+}
+
+
+
+//Ingest
+PUT _ingest/pipeline/convert_message_and_extension
+{
+  "processors": [
+    {
+      "script": {
+        "source": """
+          ctx.message = String.valueOf(ctx.message);
+        """
+      }
+    },
+    {
+      "script": {
+        "source": """
+          if (!(ctx.extension instanceof Map)) {
+            Map map = new HashMap();
+            map['raw'] = ctx.extension;
+            ctx.extension = map;
+          }
+        """
+      }
+    }
+  ]
+}
+
+
+
+// Test Data
+PUT /app.log/_doc/4
+{
+  "message": "Success",
+  "timestamp": "2024-11-21T10:50:13.127+07",
+  "extension": {
+    "name": "John Doe",
+    "gpa": 3.89,
+    "grad_year": "2024"
+  }
+}
+
+PUT /app.log/_doc/5
+{
+  "message": "Success สามกว่าๆ",
+  "timestamp": "2024-11-21T11:00:13.127+07",
+  "extension": {
+    "name": "John Doe",
+    "gpa": "สามกว่าๆ",
+    "grad_year": "2024"
+  }
+}
+
+PUT /app.log/_doc/6
+{
+  "message": "{\"tel\": \"1234\"}",
+  "timestamp": "2024-11-21T11:00:13.127+07",
+  "extension": {
+    "name": "John Doe",
+    "gpa": "สามกว่าๆ",
+    "grad_year": "2024"
+  }
+}
+
+PUT /app.log/_doc/7
+{
+  "message": "Success สามกว่าๆ 6",
+  "timestamp": "2024-11-22T08:00:13.127+07",
+  "extension": {
+    "name": "John Doe",
+    "gpa": "สามกว่าๆ",
+    "grad_year": "2024",
+    "address": {
+      "street": "ถนน เดิน",
+      "city": "Bangkok",
+      "postal_code": 10500
+    }
+  }
+}
+
+PUT /app.log/_doc/8
+{
+  "message": "Success สามกว่าๆ 8",
+  "timestamp": "2024-11-22T08:00:13.127+07",
+  "extension": {
+    "name": "Jen Doe",
+    "gpa": 2.99,
+    "grad_year": 2024,
+    "address": {
+      "street": "ถนน เดิน",
+      "city": "Bangkok",
+      "postal_code": 10500,
+      "country": "THAILAND"
+    }
+  }
+}
+
+PUT /app.log/_doc/9
+{
+  "message": "Success สามกว่าๆ 9",
+  "timestamp": "2024-11-22T08:00:13.127+07",
+  "extension": {
+    "name": "Jen Doe",
+    "gpa": 2.99,
+    "grad_year": 2024,
+    "address": {
+      "street": "ถนน เดิน",
+      "city": "Bangkok",
+      "postal_code": 10500,
+      "country": "THAILAND"
+    }
+  }
+}
+
+PUT /app.log/_doc/10
+{
+  "message": "Success สามกว่า 10",
+  "timestamp": "2024-11-22T08:00:13.127+07",
+  "extension": {
+    "name": "Jen Doe",
+    "gpa": 2.99,
+    "grad_year": 2024,
+    "address": {
+      "street": "ถนน เดิน",
+      "city": "Bangkok",
+      "postal_code": 10500,
+      "country": "THAILAND"
+    }
+  }
+}
+
+PUT /app.log/_doc/11
+{
+  "message": "{\"status\": \"success\"}",
+  "timestamp": "2024-11-22T14:00:13.127+07",
+  "extension": {
+    "name": "Jen Doe",
+    "gpa": 2.99,
+    "grad_year": 2024,
+    "address": {
+      "street": "ถนน เดิน",
+      "city": "Bangkok",
+      "postal_code": 10500,
+      "country": "THAILAND"
+    }
+  }
+}
+
+PUT /app.log/_doc/121?pipeline=convert_message_and_extension
+{
+  "message": {"status": "success"},
+  "timestamp": "2024-11-22T14:00:13.127+07",
+  "extension": {
+    "name": "Jen Doe",
+    "gpa": 2.99,
+    "grad_year": 2024,
+    "address": {
+      "street": "ถนน เดิน",
+      "city": "Bangkok",
+      "postal_code": 10500,
+      "country": "THAILAND"
+    }
+  }
+}
+
+PUT /app.log/_doc/12?pipeline=convert_message_and_extension
+{
+  "message": {"status": "success", "address": {
+    "city": "Bangkok",
+    "country": "THAILAND"
+  }},
+  "timestamp": "2024-11-22T14:00:13.127+07",
+  "extension": {
+    "name": "Jen Doe",
+    "gpa": 2.99,
+    "grad_year": 2024,
+    "address": {
+      "street": "ถนน เดิน",
+      "city": "Bangkok",
+      "postal_code": 10500,
+      "country": "THAILAND"
+    }
+  }
+}
+
+PUT /app.log/_doc/13
+{
+  "message": 100,
+  "timestamp": "2024-11-22T14:00:13.127+07",
+  "extension": {
+    "name": "Jen Doe",
+    "gpa": 2.99,
+    "grad_year": 2024,
+    "address": {
+      "street": "ถนน เดิน",
+      "city": "Bangkok",
+      "postal_code": 10500,
+      "country": "THAILAND"
+    }
+  }
+}
+
+PUT /app.log/_doc/14
+{
+  "message": ["A","B","C"],
+  "timestamp": "2024-11-22T14:00:13.127+07",
+  "extension": {
+    "name": "Jen Doe",
+    "gpa": 2.99,
+    "grad_year": 2024,
+    "address": {
+      "street": "สาทร",
+      "city": "Bangkok",
+      "postal_code": 10500,
+      "country": "THAILAND"
+    }
+  }
+}
+
+
+PUT /app.log/_doc/15
+{
+  "message": ["C","D","E"],
+  "timestamp": "2024-11-25T14:00:13.127+07"
+}
+
+
+PUT /app.log/_doc/16
+{
+  "message": ["D","E"],
+  "timestamp": "2024-11-22T12:34:56.123456789+07:00"
+}
+
+PUT /app.log/_doc/17
+{
+  "message": ["D"],
+  "timestamp": "2024-11-22T12:34:56.123456789Z"
+}
+
+PUT /app.log/_doc/18
+{
+  "message": ["E"],
+  "timestamp": "2024-11-25T15:36:56.123456789+07:00"
+}
+
+PUT /app.log/_doc/19
+{
+  "message": "New York",
+  "timestamp": "2024-11-25T12:00:00.123456789-04:00"
+}
+
+PUT /app.log/_doc/20
+{
+  "message": "Los Angeles",
+  "timestamp": "2024-11-25T09:00:00.123456789-07:00"
+}
+
+PUT /app.log/_doc/21
+{
+  "message": "London",
+  "timestamp": "2024-11-25T17:00:00.123456789+01:00"
+}
+
+
+PUT /app.log/_doc/22
+{
+  "message": "London",
+  "timestamp": "2024-11-25T17:00:00.123456789+01:00",
+  "extension": {
+    "address": {
+      "postal_code": "ไม่ระบุ"
+    }
+  }
+}
+
+PUT /app.log/_doc/222?pipeline=convert_message_and_extension
+{
+  "message": "London",
+  "timestamp": "2024-11-25T17:00:00.123456789+01:00",
+  "extension": "ข้อความ"
+}
+
+PUT /app.log/_doc/223?pipeline=convert_message_and_extension
+{
+  "message": "London",
+  "timestamp": "2024-11-25T17:00:00.123456789+01:00",
+  "extension": ["A","B","C"]
+}
+
+PUT /app.log/_doc/225?pipeline=convert_message_and_extension
+{
+  "message": "London",
+  "timestamp": "2024-11-25T17:00:00.123456789+01:00",
+  "extension": {"status": 123, "tag": ["A","B","C"]}
+}
+
+PUT /app.log/_doc/226?pipeline=convert_message_and_extension
+{
+  "message": "London",
+  "timestamp": "2024-11-25T17:00:00.123456789+01:00",
+  "extension": 5000.25
+}
+
+PUT /app.log/_doc/23
+{
+  "message": "London 1",
+  "timestamp": "2024-11-25T17:00:00.123456789+01:00",
+  "extension": {
+    "address": {
+      "postal_code": 12000
+    }
+  }
+}
+
+
+GET app.log/_mapping
+
+
+GET app.log/_search
+{
+  "query": {
+    "bool": {
+      "filter": [
+        { "range": { "extension.address.postal_code": { "lte": 15000 } } },
+        { "range": { "extension.address.postal_code": { "gte": 10000 } } }
+      ]
+    }
+  }
+}
+
+
+
+
+
+
+
+
+
