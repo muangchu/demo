@@ -1,0 +1,67 @@
+
+
+PUT _ingest/pipeline/loglibv3-pipeline
+{
+  "description": "This pipeline processes loglibv3 data to ECS schema",
+  "processors": [
+    {
+      "geoip": {
+        "field": "IP_ADDRESS",
+        "target_field": "client.geo",
+        "ignore_missing": true
+      }
+    },
+    {
+      "copy": {
+          "source_field": "SERVICE_ID",
+          "target_field" : "service.id",
+          "ignore_missing": true
+      }
+    },
+    {
+      "copy": {
+          "source_field": "SERVICE_NAME",
+          "target_field" : "service.name",
+          "ignore_missing": true
+      }
+    },
+    {
+      "copy": {
+          "source_field": "Extension.device_model",
+          "target_field" : "device.model.name",
+          "ignore_missing": true
+      }
+    },
+    {
+      "copy": {
+          "source_field": "Extension.used_time",
+          "target_field" : "event.duration_s",
+          "ignore_missing": true
+      }
+    },
+    {
+      "convert": {
+          "field": "event.duration_s",
+          "type": "double",
+          "ignore_missing": true
+      }
+    }
+  ]
+}
+
+POST /_ingest/pipeline/loglibv3-pipeline/_simulate
+{
+  "docs": [
+    {
+      "_index": "my-index",
+      "_id": "1",
+      "_source": {
+        "IP_ADDRESS": "202.44.32.11",
+        "Extension": {
+          "used_time": "1.234567"
+        },
+        "other_field": "example data"
+      }
+    }
+  ]
+}
