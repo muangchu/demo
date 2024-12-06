@@ -1,0 +1,1470 @@
+สร้าง ingest pipeline สำหรับ convert log เป็นรูปแบบ ECS schema และเลือกสร้าง custom fields ไว้ภายใต้ labels 
+- เก็บ extension โดยเก็บไว้อย่างเดียวไม่ได้ทำ index เพื่อใช้ดูได้
+- แปลง extension เป็น string แล้วเก็บไว้เพื่อให้ทำ fulltext search ได้ เช่นหาข้อมูล PII
+- เพิ่ม client geo location โดยดูจาก client ip
+
+PUT _ingest/pipeline/logs-loglibv3-pipeline
+{
+  "description": "This pipeline processes loglibv3 data to ECS schema",
+  "processors": [
+    {
+      "script": {
+        "source": """
+        def keys = ctx.keySet().toArray();
+        for (key in keys) {
+            def value = ctx.remove(key);
+            ctx[key.toLowerCase()] = value;
+        }
+        """
+      }
+    },
+    {
+      "set": {
+        "field": "ecs.version",
+        "value": "8.16"
+      }
+    },
+    {
+      "copy": {
+          "source_field": "client_id",
+          "target_field" : "client.id",
+          "ignore_missing": true
+      }
+    },
+    {
+      "copy": {
+          "source_field": "extension.CLIENT_IP_ADDRESS",
+          "target_field" : "client.ip",
+          "ignore_missing": true
+      }
+    },
+    {
+      "geoip": {
+        "field": "client.ip",
+        "target_field": "client.geo",
+        "ignore_missing": true
+      }
+    },
+    {
+      "copy": {
+          "source_field": "extension.USED_TIME",
+          "target_field" : "event.duration_sec",
+          "ignore_missing": true
+      }
+    },
+    {
+      "convert": {
+          "field": "event.duration_sec",
+          "type": "double",
+          "ignore_missing": true
+      }
+    },
+    {
+      "copy": {
+          "source_field": "log_type",
+          "target_field" : "log.level",
+          "ignore_missing": true
+      }
+    },
+    {
+      "copy": {
+          "source_field": "module_name",
+          "target_field" : "log.logger",
+          "ignore_missing": true
+      }
+    },
+    {
+      "copy": {
+          "source_field": "code_line_number",
+          "target_field" : "log.origin.file.line",
+          "ignore_missing": true
+      }
+    },
+    {
+      "copy": {
+          "source_field": "ip_address",
+          "target_field" : "service.address",
+          "ignore_missing": true
+      }
+    },
+    {
+      "copy": {
+          "source_field": "engine_name",
+          "target_field" : "service.name",
+          "ignore_missing": true
+      }
+    },
+    {
+      "copy": {
+          "source_field": "source_ip_address",
+          "target_field" : "service.origin.address",
+          "ignore_missing": true
+      }
+    },
+    {
+      "copy": {
+          "source_field": "referrer_engine",
+          "target_field" : "service.origin.name",
+          "ignore_missing": true
+      }
+    },
+    {
+      "copy": {
+          "source_field": "session_id",
+          "target_field" : "session.id",
+          "ignore_missing": true
+      }
+    },
+    {
+      "copy": {
+          "source_field": "log_session_id_from_header",
+          "target_field" : "trace.id",
+          "ignore_missing": true
+      }
+    },
+    {
+      "copy": {
+          "source_field": "extension.PATH",
+          "target_field" : "url.path",
+          "ignore_missing": true
+      }
+    },
+    {
+      "copy": {
+          "source_field": "user_id",
+          "target_field" : "user.id",
+          "ignore_missing": true
+      }
+    },
+    {
+      "copy": {
+          "source_field": "extension.mode",
+          "target_field" : "labels.mode",
+          "ignore_missing": true
+      }
+    },
+    {
+      "copy": {
+          "source_field": "extension.nmc_params.cardInfo.payment_info.ref1",
+          "target_field" : "labels.payment.ref1",
+          "ignore_missing": true
+      }
+    },   
+    {
+      "copy": {
+          "source_field": "extension.nmc_params.cardInfo.payment_info.ref2",
+          "target_field" : "labels.payment.ref2",
+          "ignore_missing": true
+      }
+    }, 
+    {
+      "script": {
+        "source": """
+          ctx.extension_text = String.valueOf(ctx.extension);
+        """
+      }
+    }
+  ]
+}
+
+
+
+ทดสอบ convert
+
+POST /_ingest/pipeline/logs-loglibv3-pipeline/_simulate
+{
+  "docs": [
+    {
+      "_index": "my-index",
+      "_id": "1",
+      "_source": {
+    "ENGINE_NAME": "MYCAR",
+    "REFERRER_ENGINE": "MYCAR",
+    "IP_ADDRESS": "10.242.4.147",
+    "SOURCE_IP_ADDRESS": "",
+    "MIDDLEWARE_SESSION_ID": "",
+    "LOG_SESSION_ID": "1bf2cb3e-caf2-4b5b-8cc0-5cfc6567e467",
+    "LOG_SESSION_ID_FROM_HEADER": "1bf2cb3e-caf2-4b5b-8cc0-5cfc6567e467",
+    "SESSION_ID": "",
+    "USER_ID": "",
+    "CLIENT_ID": "",
+    "ACTION_TYPE": "",
+    "OBJECT_NAME": "",
+    "DE_ACTIVITY_ID": "",
+    "LOG_TYPE": "Info",
+    "MODULE_NAME": "index.js (info)",
+    "CODE_LINE_NUMBER": "1854",
+    "FLOW_ID": "",
+    "APP_LOG_EVENT_ID": "",
+    "COMPONENT_CODE": "",
+    "SUB_COMPONENT_CODE": "",
+    "ENGINE_CODE": "undefined",
+    "REMARK": "",
+    "RESERV01": "",
+    "RESERV02": "",
+    "RESERV03": "",
+    "RESERV04": "",
+    "USER_ROLE": "",
+    "USER_TYPE": "",
+    "PROCESS_STATUS": "",
+    "WORKFLOW_ID": "",
+    "PORTAL_ID": "",
+    "SERVICE_ID": "",
+    "SERVICE_NAME": "",
+    "Time": 1731988573127,
+    "Time2": "2024-11-19T10:56:13.127+07",
+    "@timestamp": "2024-11-19T10:56:13.127+07",
+    "Extension": {
+        "USED_TIME": "12345",
+        "PATH": "/funds/articles",
+        "CLIENT_IP_ADDRESS": "202.44.32.11",
+        "mode": "alpha",
+        "request_id": "26d83bbb-bb1d-4d8a-ba47-0b8520a6cd02",
+        "device_id": "D75A472C-9CD1-4BFF-949F-32F344E3FF65",
+        "device_model": "iPhone 14",
+        "os_version": "18.0.1",
+        "app_version": "3.6.19",
+        "sub_state": "",
+        "log_session_id": "d41e58e9-6a14-4998-84d2-fc3234eadab8",
+        "service": "RegisterCustomerApi",
+        "channel_app": "-",
+        "user_name": "c***@tisco.co.th",
+        "nmc_function": "tdrCheckEligibleMappingCardInfo",
+        "nmc_data_account_no": "1230014537",
+        "nmc_params": {
+            "deviceId": "b79bce9b-9309-4461-957b-2439ee6ae2a2",
+            "cardInfo": {
+                "register_bank_account_bt_st": "HIDE",
+                "new_topup_bt_st": "HIDE",
+                "card_type": "2",
+                "license_no": "xxxx11",
+                "brand": "ISUZU",
+                "model": "ISUZU SPACECAB SLX",
+                "province": "สุราษฎร์ธานี",
+                "account_no": "1230014537",
+                "client_no": "xxxx82",
+                "app_code": "RA",
+                "payment_info": {
+                    "is_overdue": 555,
+                    "status": "Y",
+                    "status_msg": "Success",
+                    "min_due_date": "02/08/2023",
+                    "barcode": "|010753900017100\r206101513\r1230014537\r0000816000",
+                    "barcode_prefix": "|010753900017100\r206101513\r1230014537\r",
+                    "total_amt": "8,160.00",
+                    "ref1": "206101513",
+                    "ref2": "1230014537",
+                    "enabled_flag": "Y",
+                    "payment_lst": [
+                        {
+                            "group_type": "2",
+                            "name": "ค่างวดจำนำ/กู้เพิ่ม",
+                            "total_amt": "8,160.00",
+                            "detail_lst": [
+                                {
+                                    "key": "ยอดเรียกเก็บประจำเดือน 08/2023",
+                                    "value": "3,618.00"
+                                },
+                                {
+                                    "key": "ยอดเรียกเก็บประจำเดือน 09/2023",
+                                    "value": "4,542.00"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                "full_name": "xxxxxxxxxxxxxxxxxxxx7082",
+                "reserve_date1": "20211230",
+                "first_name": "xxxxxxx7082",
+                "last_name": "xxxxxxx7082",
+                "license_no_name": "xxxx11",
+                "chassis": "SV30-0169266",
+                "card_detail": {
+                    "license_no": "xxxx11",
+                    "brand": "ISUZU",
+                    "model": "ISUZU SPACECAB SLX",
+                    "province": "สุราษฎร์ธานี",
+                    "card_type": "2",
+                    "acc_lst": [
+                        {
+                            "appcode": "RA",
+                            "account": "1230014537",
+                            "client": "xxxx82",
+                            "accountSt": {},
+                            "consentFlag": {},
+                            "product_type": "LAAL"
+                        }
+                    ],
+                    "acc_rb_lst": [
+                        {
+                            "appcode": "RB",
+                            "account": "1280014295",
+                            "client": "xxxx82",
+                            "accountSt": "ครบกำหนดชำระ",
+                            "account_code": "O",
+                            "active_dte": "2023-07-13",
+                            "parent_account": "1230014537"
+                        },
+                        {
+                            "appcode": "RB",
+                            "account": "1280053002",
+                            "client": "xxxx82",
+                            "accountSt": "Active",
+                            "account_code": " ",
+                            "active_dte": "2023-08-16",
+                            "parent_account": "1230014537"
+                        }
+                    ],
+                    "card_key_unique": "dc60bf0c-1b7c-50d4-8ba6-5c38db26bdc7",
+                    "license_no_name": "xxxx11",
+                    "is_find_hp": false,
+                    "is_find_legal": false
+                },
+                "card_key_unique": "dc60bf0c-1b7c-50d4-8ba6-5c38db26bdc7",
+                "product_list_renew": [
+                    {
+                        "product_type": "LAAL_RA",
+                        "license_no": "xxxx11",
+                        "detail": {
+                            "last_instlmt_due_date": "11/08/2023",
+                            "account_no": "1230014537",
+                            "acc_status_code": "O",
+                            "acc_status_desc": "ครบกำหนดชำระ",
+                            "period": "121",
+                            "paid": "18",
+                            "last_close_account": {},
+                            "eligible_info": {
+                                "req_amount_bt_st": "HIDE",
+                                "available_debit": {},
+                                "available_debit_text": "-",
+                                "loan_eligible_st": "UNAVAILABLE",
+                                "credit_line_bt_st": "HIDE",
+                                "register_bank_account_bt_st": "HIDE"
+                            },
+                            "app_code": "RA",
+                            "due_day": "2",
+                            "due_date": {},
+                            "curr_mo_instlmt": "4,295.00",
+                            "outstanding_principal": "137,746.74",
+                            "interest_receive": "2,805.76",
+                            "fnc_amount_hsg_loan": "140,000.00",
+                            "available_debit_text": "-",
+                            "total_drawdown": "175,000.00",
+                            "outstanding_principal_origin": "137,746.74",
+                            "acc_status_desc_th": "ครบกำหนดชำระ",
+                            "is_display_status_code": true,
+                            "acc_status_desc_color": "red",
+                            "acc_status_type": "available"
+                        },
+                        "total_amt": "8,160.00",
+                        "min_due_date": "02/08/2023",
+                        "product_type_name": "สินเชื่อเพิ่มวงเงิน",
+                        "product_type_group": "วงเงินหมุนเวียน"
+                    },
+                    {
+                        "product_type": "INSURE",
+                        "license_no": "xxxx11",
+                        "detail": {
+                            "ins_comp_nm": "บริษัท เอไอเอ จำกัด",
+                            "ins_cvrd_dsc": "ประกันคุ้มครองสินเชื่อ (ALP)",
+                            "ins_tel_nbr": "xxxxx8888",
+                            "ins_polcy_nbr": "xxxxx0788",
+                            "ins_eff_exp_dt": "30/12/2021 - 29/03/2027",
+                            "ins_prm_amt": "0.00",
+                            "show_amt": "N",
+                            "ins_comp_code": "578",
+                            "ins_eff_dt": "30/12/2021",
+                            "ins_exp_dt": "29/03/2027",
+                            "ins_brokerage_code": "3805",
+                            "ins_brokerage_en_dsc": "HI-WAY COMPANY LIMITED",
+                            "ins_brokerage_th_dsc": "บริษัท ไฮเวย์ จำกัด",
+                            "ins_grp": "ALP",
+                            "ins_broker_name": "บริษัท ไฮเวย์ จำกัด",
+                            "ins_comp_image_url": "https://content.talpha.co/mycar/image/insure_comp/insure_comp_578.png",
+                            "insured_template": "Normal",
+                            "insured_remain_day": "1321"
+                        },
+                        "total_amt": "8,160.00",
+                        "min_due_date": "02/08/2023",
+                        "product_type_name": "INSURE",
+                        "product_type_group": "INSURE",
+                        "product_ins_key": "INSURE/ประกันคุ้มครองสินเชื่อ (ALP)"
+                    },
+                    {
+                        "product_type": "HISTORY",
+                        "license_no": "xxxx11",
+                        "detail": {
+                            "status": "Y",
+                            "status_msg": "Success",
+                            "history_lst": [
+                                {
+                                    "process_date": "12/07/2023",
+                                    "detail_lst": [
+                                        {
+                                            "key": "ค่าติดตามทวงถามหนี้",
+                                            "value": "53.00"
+                                        },
+                                        {
+                                            "key": "ค่างวด งวดที่ 18 #12XXXXXX95",
+                                            "value": "3,565.00"
+                                        }
+                                    ],
+                                    "history_total_amount": "3,618.00"
+                                }
+                            ],
+                            "account_lst": [
+                                {
+                                    "app_code": "RA",
+                                    "account_no": "1230014537",
+                                    "client_no": "xxxx82",
+                                    "property_type": "2"
+                                }
+                            ],
+                            "payment_info": {}
+                        },
+                        "total_amt": "8,160.00",
+                        "min_due_date": "02/08/2023",
+                        "product_type_name": "HISTORY",
+                        "product_type_group": "HISTORY"
+                    },
+                    {
+                        "product_type": "PDF",
+                        "license_no": "xxxx11",
+                        "detail": {},
+                        "total_amt": "8,160.00",
+                        "min_due_date": "02/08/2023",
+                        "product_type_name": "PDF",
+                        "product_type_group": "PDF"
+                    }
+                ],
+                "product_list_status": "200000",
+                "product_list_desc": "ทำรายการสำเร็จ",
+                "car_type": "Default",
+                "car_type_path": "https://content.talpha.co/mycar/image/car_card/Type_Default.png",
+                "insure_lst": [
+                    {
+                        "ins_comp_nm": "บริษัท เอไอเอ จำกัด",
+                        "ins_cvrd_dsc": "ประกันคุ้มครองสินเชื่อ (ALP)",
+                        "ins_tel_nbr": "xxxxx8888",
+                        "ins_polcy_nbr": "xxxxx0788",
+                        "ins_eff_exp_dt": "30/12/2021 - 29/03/2027",
+                        "ins_prm_amt": "0.00",
+                        "show_amt": "N",
+                        "ins_comp_code": "578",
+                        "ins_eff_dt": "30/12/2021",
+                        "ins_exp_dt": "29/03/2027",
+                        "ins_brokerage_code": "3805",
+                        "ins_brokerage_en_dsc": "HI-WAY COMPANY LIMITED",
+                        "ins_brokerage_th_dsc": "บริษัท ไฮเวย์ จำกัด",
+                        "ins_grp": "ALP",
+                        "ins_broker_name": "บริษัท ไฮเวย์ จำกัด",
+                        "ins_comp_image_url": "https://content.talpha.co/mycar/image/insure_comp/insure_comp_578.png",
+                        "insured_template": "Normal",
+                        "insured_remain_day": "1321"
+                    }
+                ],
+                "insure_status": "200000",
+                "insure_desc": "ทำรายการสำเร็จ"
+            }
+        }
+    },
+    "Message": "b79bce9b-9309-4461-957b-2439ee6ae2a2:tdrCheckEligibleMappingCardInfo: FINISH"
+}
+    }
+  ]
+}
+
+
+
+สร้าง index แบบระบุ fields เพื่อไม่ให้ auto สร้าง
+
+
+DELETE sample-app.log
+
+PUT sample-app.log
+{
+  "settings": {
+    "index.default_pipeline": "logs-loglibv3-pipeline"
+  },
+  "mappings": {
+    "dynamic": false,
+    "properties": {
+        "@timestamp": {
+          "type": "date_nanos"
+        },
+        "ecs.version": {
+          "type": "keyword"
+        },
+        "client.geo.location": {
+          "type": "geo_point"
+        },
+        "client.geo.city_name": {
+          "type": "keyword"
+        },
+        "client.geo.country_name": {
+          "type": "keyword"
+        },
+        "client.id": {
+          "type": "keyword"
+        },
+        "client.ip": {
+          "type": "ip"
+        },
+        "event.duration_sec": {
+          "type": "double"
+        },
+        "log.level": {
+          "type": "keyword"
+        },
+        "log.logger": {
+          "type": "keyword"
+        },
+        "log.origin.file.line": {
+          "type": "long"
+        },
+        "message": {
+            "type": "text"
+        },
+        "service.address": {
+          "type": "keyword"
+        },
+        "service.name": {
+            "type": "keyword"
+        },
+        "service.origin.address": {
+            "type": "keyword"
+        },
+        "service.origin.name": {
+            "type": "keyword"
+        },
+        "session.id": {
+            "type": "keyword"
+        },
+        "trace.id": {
+            "type": "keyword"
+        },
+        "url.path": {
+          "type": "wildcard"
+        },
+        "user.id": {
+          "type": "keyword"
+        },
+        "labels": {
+          "dynamic": true,
+          "type": "object"
+        },
+        "extension": {
+          "type": "object",
+          "enabled": false
+        },
+        "extension_text": {
+          "type": "text"
+        }
+    }
+  }
+}
+
+
+
+ใส่ข้อมูลทดสอบ
+
+PUT /sample-app.log/_doc/4
+{
+  "@timestamp": "2024-11-21T10:50:13.127+07",
+  "message": "Success",
+  "extension": {
+    "name": "John Doe",
+    "gpa": 3.89,
+    "grad_year": "2025"
+  },
+  "event" :{
+    "duration": 12345
+  }
+}
+
+PUT /sample-app.log/_doc/501
+{
+    "ENGINE_NAME": "MYCAR",
+    "REFERRER_ENGINE": "MYCAR",
+    "IP_ADDRESS": "10.242.4.147",
+    "SOURCE_IP_ADDRESS": "",
+    "MIDDLEWARE_SESSION_ID": "",
+    "LOG_SESSION_ID": "1bf2cb3e-caf2-4b5b-8cc0-5cfc6567e467",
+    "LOG_SESSION_ID_FROM_HEADER": "1bf2cb3e-caf2-4b5b-8cc0-5cfc6567e467",
+    "SESSION_ID": "",
+    "USER_ID": "",
+    "CLIENT_ID": "",
+    "ACTION_TYPE": "",
+    "OBJECT_NAME": "",
+    "DE_ACTIVITY_ID": "",
+    "LOG_TYPE": "Info",
+    "MODULE_NAME": "index.js (info)",
+    "CODE_LINE_NUMBER": "1854",
+    "FLOW_ID": "",
+    "APP_LOG_EVENT_ID": "",
+    "COMPONENT_CODE": "",
+    "SUB_COMPONENT_CODE": "",
+    "ENGINE_CODE": "undefined",
+    "REMARK": "",
+    "RESERV01": "",
+    "RESERV02": "",
+    "RESERV03": "",
+    "RESERV04": "",
+    "USER_ROLE": "",
+    "USER_TYPE": "",
+    "PROCESS_STATUS": "",
+    "WORKFLOW_ID": "",
+    "PORTAL_ID": "",
+    "SERVICE_ID": "",
+    "SERVICE_NAME": "",
+    "USED_TIME": "12345",
+    "PATH": "/funds/articles",
+    "Time": 1731988573127,
+    "Time2": "2024-11-19T10:56:13.127+07",
+    "@timestamp": "2024-11-19T10:56:13.127+07",
+    "Extension": {
+        "mode": "alpha",
+        "request_id": "26d83bbb-bb1d-4d8a-ba47-0b8520a6cd02",
+        "device_id": "D75A472C-9CD1-4BFF-949F-32F344E3FF65",
+        "device_model": "iPhone 14",
+        "os_version": "18.0.1",
+        "app_version": "3.6.19",
+        "sub_state": "",
+        "log_session_id": "d41e58e9-6a14-4998-84d2-fc3234eadab8",
+        "service": "RegisterCustomerApi",
+        "channel_app": "-",
+        "user_name": "c***@tisco.co.th",
+        "nmc_function": "tdrCheckEligibleMappingCardInfo",
+        "nmc_data_account_no": "1230014537",
+        "nmc_params": {
+            "deviceId": "b79bce9b-9309-4461-957b-2439ee6ae2a2",
+            "cardInfo": {
+                "register_bank_account_bt_st": "HIDE",
+                "new_topup_bt_st": "HIDE",
+                "card_type": "2",
+                "license_no": "xxxx11",
+                "brand": "ISUZU",
+                "model": "ISUZU SPACECAB SLX",
+                "province": "สุราษฎร์ธานี",
+                "account_no": "1230014537",
+                "client_no": "xxxx82",
+                "app_code": "RA",
+                "payment_info": {
+                    "is_overdue": 555,
+                    "status": "Y",
+                    "status_msg": "Success",
+                    "min_due_date": "02/08/2023",
+                    "barcode": "|010753900017100\r206101513\r1230014537\r0000816000",
+                    "barcode_prefix": "|010753900017100\r206101513\r1230014537\r",
+                    "total_amt": "8,160.00",
+                    "ref1": "206101513",
+                    "ref2": "1230014537",
+                    "enabled_flag": "Y",
+                    "payment_lst": [
+                        {
+                            "group_type": "2",
+                            "name": "ค่างวดจำนำ/กู้เพิ่ม",
+                            "total_amt": "8,160.00",
+                            "detail_lst": [
+                                {
+                                    "key": "ยอดเรียกเก็บประจำเดือน 08/2023",
+                                    "value": "3,618.00"
+                                },
+                                {
+                                    "key": "ยอดเรียกเก็บประจำเดือน 09/2023",
+                                    "value": "4,542.00"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                "full_name": "xxxxxxxxxxxxxxxxxxxx7082",
+                "reserve_date1": "20211230",
+                "first_name": "xxxxxxx7082",
+                "last_name": "xxxxxxx7082",
+                "license_no_name": "xxxx11",
+                "chassis": "SV30-0169266",
+                "card_detail": {
+                    "license_no": "xxxx11",
+                    "brand": "ISUZU",
+                    "model": "ISUZU SPACECAB SLX",
+                    "province": "สุราษฎร์ธานี",
+                    "card_type": "2",
+                    "acc_lst": [
+                        {
+                            "appcode": "RA",
+                            "account": "1230014537",
+                            "client": "xxxx82",
+                            "accountSt": {},
+                            "consentFlag": {},
+                            "product_type": "LAAL"
+                        }
+                    ],
+                    "acc_rb_lst": [
+                        {
+                            "appcode": "RB",
+                            "account": "1280014295",
+                            "client": "xxxx82",
+                            "accountSt": "ครบกำหนดชำระ",
+                            "account_code": "O",
+                            "active_dte": "2023-07-13",
+                            "parent_account": "1230014537"
+                        },
+                        {
+                            "appcode": "RB",
+                            "account": "1280053002",
+                            "client": "xxxx82",
+                            "accountSt": "Active",
+                            "account_code": " ",
+                            "active_dte": "2023-08-16",
+                            "parent_account": "1230014537"
+                        }
+                    ],
+                    "card_key_unique": "dc60bf0c-1b7c-50d4-8ba6-5c38db26bdc7",
+                    "license_no_name": "xxxx11",
+                    "is_find_hp": false,
+                    "is_find_legal": false
+                },
+                "card_key_unique": "dc60bf0c-1b7c-50d4-8ba6-5c38db26bdc7",
+                "product_list_renew": [
+                    {
+                        "product_type": "LAAL_RA",
+                        "license_no": "xxxx11",
+                        "detail": {
+                            "last_instlmt_due_date": "11/08/2023",
+                            "account_no": "1230014537",
+                            "acc_status_code": "O",
+                            "acc_status_desc": "ครบกำหนดชำระ",
+                            "period": "121",
+                            "paid": "18",
+                            "last_close_account": {},
+                            "eligible_info": {
+                                "req_amount_bt_st": "HIDE",
+                                "available_debit": {},
+                                "available_debit_text": "-",
+                                "loan_eligible_st": "UNAVAILABLE",
+                                "credit_line_bt_st": "HIDE",
+                                "register_bank_account_bt_st": "HIDE"
+                            },
+                            "app_code": "RA",
+                            "due_day": "2",
+                            "due_date": {},
+                            "curr_mo_instlmt": "4,295.00",
+                            "outstanding_principal": "137,746.74",
+                            "interest_receive": "2,805.76",
+                            "fnc_amount_hsg_loan": "140,000.00",
+                            "available_debit_text": "-",
+                            "total_drawdown": "175,000.00",
+                            "outstanding_principal_origin": "137,746.74",
+                            "acc_status_desc_th": "ครบกำหนดชำระ",
+                            "is_display_status_code": true,
+                            "acc_status_desc_color": "red",
+                            "acc_status_type": "available"
+                        },
+                        "total_amt": "8,160.00",
+                        "min_due_date": "02/08/2023",
+                        "product_type_name": "สินเชื่อเพิ่มวงเงิน",
+                        "product_type_group": "วงเงินหมุนเวียน"
+                    },
+                    {
+                        "product_type": "INSURE",
+                        "license_no": "xxxx11",
+                        "detail": {
+                            "ins_comp_nm": "บริษัท เอไอเอ จำกัด",
+                            "ins_cvrd_dsc": "ประกันคุ้มครองสินเชื่อ (ALP)",
+                            "ins_tel_nbr": "xxxxx8888",
+                            "ins_polcy_nbr": "xxxxx0788",
+                            "ins_eff_exp_dt": "30/12/2021 - 29/03/2027",
+                            "ins_prm_amt": "0.00",
+                            "show_amt": "N",
+                            "ins_comp_code": "578",
+                            "ins_eff_dt": "30/12/2021",
+                            "ins_exp_dt": "29/03/2027",
+                            "ins_brokerage_code": "3805",
+                            "ins_brokerage_en_dsc": "HI-WAY COMPANY LIMITED",
+                            "ins_brokerage_th_dsc": "บริษัท ไฮเวย์ จำกัด",
+                            "ins_grp": "ALP",
+                            "ins_broker_name": "บริษัท ไฮเวย์ จำกัด",
+                            "ins_comp_image_url": "https://content.talpha.co/mycar/image/insure_comp/insure_comp_578.png",
+                            "insured_template": "Normal",
+                            "insured_remain_day": "1321"
+                        },
+                        "total_amt": "8,160.00",
+                        "min_due_date": "02/08/2023",
+                        "product_type_name": "INSURE",
+                        "product_type_group": "INSURE",
+                        "product_ins_key": "INSURE/ประกันคุ้มครองสินเชื่อ (ALP)"
+                    },
+                    {
+                        "product_type": "HISTORY",
+                        "license_no": "xxxx11",
+                        "detail": {
+                            "status": "Y",
+                            "status_msg": "Success",
+                            "history_lst": [
+                                {
+                                    "process_date": "12/07/2023",
+                                    "detail_lst": [
+                                        {
+                                            "key": "ค่าติดตามทวงถามหนี้",
+                                            "value": "53.00"
+                                        },
+                                        {
+                                            "key": "ค่างวด งวดที่ 18 #12XXXXXX95",
+                                            "value": "3,565.00"
+                                        }
+                                    ],
+                                    "history_total_amount": "3,618.00"
+                                }
+                            ],
+                            "account_lst": [
+                                {
+                                    "app_code": "RA",
+                                    "account_no": "1230014537",
+                                    "client_no": "xxxx82",
+                                    "property_type": "2"
+                                }
+                            ],
+                            "payment_info": {}
+                        },
+                        "total_amt": "8,160.00",
+                        "min_due_date": "02/08/2023",
+                        "product_type_name": "HISTORY",
+                        "product_type_group": "HISTORY"
+                    },
+                    {
+                        "product_type": "PDF",
+                        "license_no": "xxxx11",
+                        "detail": {},
+                        "total_amt": "8,160.00",
+                        "min_due_date": "02/08/2023",
+                        "product_type_name": "PDF",
+                        "product_type_group": "PDF"
+                    }
+                ],
+                "product_list_status": "200000",
+                "product_list_desc": "ทำรายการสำเร็จ",
+                "car_type": "Default",
+                "car_type_path": "https://content.talpha.co/mycar/image/car_card/Type_Default.png",
+                "insure_lst": [
+                    {
+                        "ins_comp_nm": "บริษัท เอไอเอ จำกัด",
+                        "ins_cvrd_dsc": "ประกันคุ้มครองสินเชื่อ (ALP)",
+                        "ins_tel_nbr": "xxxxx8888",
+                        "ins_polcy_nbr": "xxxxx0788",
+                        "ins_eff_exp_dt": "30/12/2021 - 29/03/2027",
+                        "ins_prm_amt": "0.00",
+                        "show_amt": "N",
+                        "ins_comp_code": "578",
+                        "ins_eff_dt": "30/12/2021",
+                        "ins_exp_dt": "29/03/2027",
+                        "ins_brokerage_code": "3805",
+                        "ins_brokerage_en_dsc": "HI-WAY COMPANY LIMITED",
+                        "ins_brokerage_th_dsc": "บริษัท ไฮเวย์ จำกัด",
+                        "ins_grp": "ALP",
+                        "ins_broker_name": "บริษัท ไฮเวย์ จำกัด",
+                        "ins_comp_image_url": "https://content.talpha.co/mycar/image/insure_comp/insure_comp_578.png",
+                        "insured_template": "Normal",
+                        "insured_remain_day": "1321"
+                    }
+                ],
+                "insure_status": "200000",
+                "insure_desc": "ทำรายการสำเร็จ"
+            }
+        }
+    },
+    "Message": "b79bce9b-9309-4461-957b-2439ee6ae2a2:tdrCheckEligibleMappingCardInfo: FINISH"
+}
+
+
+PUT /sample-app.log/_doc/502
+{
+    "ENGINE_NAME": "MYCAR",
+    "REFERRER_ENGINE": "MYCAR",
+    "IP_ADDRESS": "10.242.4.147",
+    "SOURCE_IP_ADDRESS": "",
+    "MIDDLEWARE_SESSION_ID": "",
+    "LOG_SESSION_ID": "1bf2cb3e-caf2-4b5b-8cc0-5cfc6567e467",
+    "LOG_SESSION_ID_FROM_HEADER": "1bf2cb3e-caf2-4b5b-8cc0-5cfc6567e467",
+    "SESSION_ID": "",
+    "USER_ID": "",
+    "CLIENT_ID": "",
+    "ACTION_TYPE": "",
+    "OBJECT_NAME": "",
+    "DE_ACTIVITY_ID": "",
+    "LOG_TYPE": "Info",
+    "MODULE_NAME": "index.js (info)",
+    "CODE_LINE_NUMBER": "1854",
+    "FLOW_ID": "",
+    "APP_LOG_EVENT_ID": "",
+    "COMPONENT_CODE": "",
+    "SUB_COMPONENT_CODE": "",
+    "ENGINE_CODE": "undefined",
+    "REMARK": "",
+    "RESERV01": "",
+    "RESERV02": "",
+    "RESERV03": "",
+    "RESERV04": "",
+    "USER_ROLE": "",
+    "USER_TYPE": "",
+    "PROCESS_STATUS": "",
+    "WORKFLOW_ID": "",
+    "PORTAL_ID": "",
+    "SERVICE_ID": "",
+    "SERVICE_NAME": "",
+    "USED_TIME": "12345",
+    "PATH": "/funds/articles",
+    "Time": 1731988573127,
+    "Time2": "2024-11-19T10:56:13.127+07",
+    "@timestamp": "2024-11-19T10:56:13.127+07",
+    "Extension": {
+        "USED_TIME": 1.23,
+        "PATH": "/api/members",
+        "CLIENT_IP_ADDRESS": "202.44.32.11",
+        "mode": "alpha",
+        "request_id": "26d83bbb-bb1d-4d8a-ba47-0b8520a6cd02",
+        "device_id": "D75A472C-9CD1-4BFF-949F-32F344E3FF65",
+        "device_model": "iPhone 14",
+        "os_version": "18.0.1",
+        "app_version": "3.6.19",
+        "sub_state": "",
+        "log_session_id": "d41e58e9-6a14-4998-84d2-fc3234eadab8",
+        "service": "RegisterCustomerApi",
+        "channel_app": "-",
+        "user_name": "c***@tisco.co.th",
+        "nmc_function": "tdrCheckEligibleMappingCardInfo",
+        "nmc_data_account_no": "1230014537",
+        "nmc_params": {
+            "deviceId": "b79bce9b-9309-4461-957b-2439ee6ae2a2",
+            "cardInfo": {
+                "register_bank_account_bt_st": "HIDE",
+                "new_topup_bt_st": "HIDE",
+                "card_type": "2",
+                "license_no": "xxxx11",
+                "brand": "ISUZU",
+                "model": "ISUZU SPACECAB SLX",
+                "province": "สุราษฎร์ธานี",
+                "account_no": "1230014537",
+                "client_no": "xxxx82",
+                "app_code": "RA",
+                "payment_info": {
+                    "is_overdue": true,
+                    "status": "Y",
+                    "status_msg": "Success",
+                    "min_due_date": "02/08/2023",
+                    "barcode": "|010753900017100\r206101513\r1230014537\r0000816000",
+                    "barcode_prefix": "|010753900017100\r206101513\r1230014537\r",
+                    "total_amt": "8,160.00",
+                    "ref1": "206101513",
+                    "ref2": "1230014537",
+                    "enabled_flag": "Y",
+                    "payment_lst": [
+                        {
+                            "group_type": "2",
+                            "name": "ค่างวดจำนำ/กู้เพิ่ม",
+                            "total_amt": "8,160.00",
+                            "detail_lst": [
+                                {
+                                    "key": "ยอดเรียกเก็บประจำเดือน 08/2023",
+                                    "value": "3,618.00"
+                                },
+                                {
+                                    "key": "ยอดเรียกเก็บประจำเดือน 09/2023",
+                                    "value": "4,542.00"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                "full_name": "xxxxxxxxxxxxxxxxxxxx7082",
+                "reserve_date1": "20211230",
+                "first_name": "xxxxxxx7082",
+                "last_name": "xxxxxxx7082",
+                "license_no_name": "xxxx11",
+                "chassis": "SV30-0169266",
+                "card_detail": {
+                    "license_no": "xxxx11",
+                    "brand": "ISUZU",
+                    "model": "ISUZU SPACECAB SLX",
+                    "province": "สุราษฎร์ธานี",
+                    "card_type": "2",
+                    "acc_lst": [
+                        {
+                            "appcode": "RA",
+                            "account": "1230014537",
+                            "client": "xxxx82",
+                            "accountSt": {},
+                            "consentFlag": {},
+                            "product_type": "LAAL"
+                        }
+                    ],
+                    "acc_rb_lst": [
+                        {
+                            "appcode": "RB",
+                            "account": "1280014295",
+                            "client": "xxxx82",
+                            "accountSt": "ครบกำหนดชำระ",
+                            "account_code": "O",
+                            "active_dte": "2023-07-13",
+                            "parent_account": "1230014537"
+                        },
+                        {
+                            "appcode": "RB",
+                            "account": "1280053002",
+                            "client": "xxxx82",
+                            "accountSt": "Active",
+                            "account_code": " ",
+                            "active_dte": "2023-08-16",
+                            "parent_account": "1230014537"
+                        }
+                    ],
+                    "card_key_unique": "dc60bf0c-1b7c-50d4-8ba6-5c38db26bdc7",
+                    "license_no_name": "xxxx11",
+                    "is_find_hp": false,
+                    "is_find_legal": false
+                },
+                "card_key_unique": "dc60bf0c-1b7c-50d4-8ba6-5c38db26bdc7",
+                "product_list_renew": [
+                    {
+                        "product_type": "LAAL_RA",
+                        "license_no": "xxxx11",
+                        "detail": {
+                            "last_instlmt_due_date": "11/08/2023",
+                            "account_no": "1230014537",
+                            "acc_status_code": "O",
+                            "acc_status_desc": "ครบกำหนดชำระ",
+                            "period": "121",
+                            "paid": "18",
+                            "last_close_account": {},
+                            "eligible_info": {
+                                "req_amount_bt_st": "HIDE",
+                                "available_debit": {},
+                                "available_debit_text": "-",
+                                "loan_eligible_st": "UNAVAILABLE",
+                                "credit_line_bt_st": "HIDE",
+                                "register_bank_account_bt_st": "HIDE"
+                            },
+                            "app_code": "RA",
+                            "due_day": "2",
+                            "due_date": {},
+                            "curr_mo_instlmt": "4,295.00",
+                            "outstanding_principal": "137,746.74",
+                            "interest_receive": "2,805.76",
+                            "fnc_amount_hsg_loan": "140,000.00",
+                            "available_debit_text": "-",
+                            "total_drawdown": "175,000.00",
+                            "outstanding_principal_origin": "137,746.74",
+                            "acc_status_desc_th": "ครบกำหนดชำระ",
+                            "is_display_status_code": true,
+                            "acc_status_desc_color": "red",
+                            "acc_status_type": "available"
+                        },
+                        "total_amt": "8,160.00",
+                        "min_due_date": "02/08/2023",
+                        "product_type_name": "สินเชื่อเพิ่มวงเงิน",
+                        "product_type_group": "วงเงินหมุนเวียน"
+                    },
+                    {
+                        "product_type": "INSURE",
+                        "license_no": "xxxx11",
+                        "detail": {
+                            "ins_comp_nm": "บริษัท เอไอเอ จำกัด",
+                            "ins_cvrd_dsc": "ประกันคุ้มครองสินเชื่อ (ALP)",
+                            "ins_tel_nbr": "xxxxx8888",
+                            "ins_polcy_nbr": "xxxxx0788",
+                            "ins_eff_exp_dt": "30/12/2021 - 29/03/2027",
+                            "ins_prm_amt": "0.00",
+                            "show_amt": "N",
+                            "ins_comp_code": "578",
+                            "ins_eff_dt": "30/12/2021",
+                            "ins_exp_dt": "29/03/2027",
+                            "ins_brokerage_code": "3805",
+                            "ins_brokerage_en_dsc": "HI-WAY COMPANY LIMITED",
+                            "ins_brokerage_th_dsc": "บริษัท ไฮเวย์ จำกัด",
+                            "ins_grp": "ALP",
+                            "ins_broker_name": "บริษัท ไฮเวย์ จำกัด",
+                            "ins_comp_image_url": "https://content.talpha.co/mycar/image/insure_comp/insure_comp_578.png",
+                            "insured_template": "Normal",
+                            "insured_remain_day": "1321"
+                        },
+                        "total_amt": "8,160.00",
+                        "min_due_date": "02/08/2023",
+                        "product_type_name": "INSURE",
+                        "product_type_group": "INSURE",
+                        "product_ins_key": "INSURE/ประกันคุ้มครองสินเชื่อ (ALP)"
+                    },
+                    {
+                        "product_type": "HISTORY",
+                        "license_no": "xxxx11",
+                        "detail": {
+                            "status": "Y",
+                            "status_msg": "Success",
+                            "history_lst": [
+                                {
+                                    "process_date": "12/07/2023",
+                                    "detail_lst": [
+                                        {
+                                            "key": "ค่าติดตามทวงถามหนี้",
+                                            "value": "53.00"
+                                        },
+                                        {
+                                            "key": "ค่างวด งวดที่ 18 #12XXXXXX95",
+                                            "value": "3,565.00"
+                                        }
+                                    ],
+                                    "history_total_amount": "3,618.00"
+                                }
+                            ],
+                            "account_lst": [
+                                {
+                                    "app_code": "RA",
+                                    "account_no": "1230014537",
+                                    "client_no": "xxxx82",
+                                    "property_type": "2"
+                                }
+                            ],
+                            "payment_info": {}
+                        },
+                        "total_amt": "8,160.00",
+                        "min_due_date": "02/08/2023",
+                        "product_type_name": "HISTORY",
+                        "product_type_group": "HISTORY"
+                    },
+                    {
+                        "product_type": "PDF",
+                        "license_no": "xxxx11",
+                        "detail": {},
+                        "total_amt": "8,160.00",
+                        "min_due_date": "02/08/2023",
+                        "product_type_name": "PDF",
+                        "product_type_group": "PDF"
+                    }
+                ],
+                "product_list_status": "200000",
+                "product_list_desc": "ทำรายการสำเร็จ",
+                "car_type": "Default",
+                "car_type_path": "https://content.talpha.co/mycar/image/car_card/Type_Default.png",
+                "insure_lst": [
+                    {
+                        "ins_comp_nm": "บริษัท เอไอเอ จำกัด",
+                        "ins_cvrd_dsc": "ประกันคุ้มครองสินเชื่อ (ALP)",
+                        "ins_tel_nbr": "xxxxx8888",
+                        "ins_polcy_nbr": "xxxxx0788",
+                        "ins_eff_exp_dt": "30/12/2021 - 29/03/2027",
+                        "ins_prm_amt": "0.00",
+                        "show_amt": "N",
+                        "ins_comp_code": "578",
+                        "ins_eff_dt": "30/12/2021",
+                        "ins_exp_dt": "29/03/2027",
+                        "ins_brokerage_code": "3805",
+                        "ins_brokerage_en_dsc": "HI-WAY COMPANY LIMITED",
+                        "ins_brokerage_th_dsc": "บริษัท ไฮเวย์ จำกัด",
+                        "ins_grp": "ALP",
+                        "ins_broker_name": "บริษัท ไฮเวย์ จำกัด",
+                        "ins_comp_image_url": "https://content.talpha.co/mycar/image/insure_comp/insure_comp_578.png",
+                        "insured_template": "Normal",
+                        "insured_remain_day": "1321"
+                    }
+                ],
+                "insure_status": "200000",
+                "insure_desc": "ทำรายการสำเร็จ"
+            }
+        }
+    },
+    "Message": "b79bce9b-9309-4461-957b-2439ee6ae2a2:tdrCheckEligibleMappingCardInfo: FINISH"
+}
+
+
+PUT /sample-app.log/_doc/503
+{
+    "ENGINE_NAME": "noti",
+    "REFERRER_ENGINE": "MYCAR",
+    "IP_ADDRESS": "10.242.4.147",
+    "SOURCE_IP_ADDRESS": "",
+    "MIDDLEWARE_SESSION_ID": "",
+    "LOG_SESSION_ID": "1bf2cb3e-caf2-4b5b-8cc0-5cfc6567e467",
+    "LOG_SESSION_ID_FROM_HEADER": "1bf2cb3e-caf2-4b5b-8cc0-5cfc6567e467",
+    "SESSION_ID": "",
+    "USER_ID": "",
+    "CLIENT_ID": "",
+    "ACTION_TYPE": "",
+    "OBJECT_NAME": "",
+    "DE_ACTIVITY_ID": "",
+    "LOG_TYPE": "Info",
+    "MODULE_NAME": "index.js (info)",
+    "CODE_LINE_NUMBER": "1854",
+    "FLOW_ID": "",
+    "APP_LOG_EVENT_ID": "",
+    "COMPONENT_CODE": "",
+    "SUB_COMPONENT_CODE": "",
+    "ENGINE_CODE": "undefined",
+    "REMARK": "",
+    "RESERV01": "",
+    "RESERV02": "",
+    "RESERV03": "",
+    "RESERV04": "",
+    "USER_ROLE": "",
+    "USER_TYPE": "",
+    "PROCESS_STATUS": "",
+    "WORKFLOW_ID": "",
+    "PORTAL_ID": "",
+    "SERVICE_ID": "",
+    "SERVICE_NAME": "",
+    "USED_TIME": "12345",
+    "PATH": "/funds/articles",
+    "Time": 1731988573127,
+    "Time2": "2024-11-19T10:56:13.127+07",
+    "@timestamp": "2024-11-19T10:56:13.127+07",
+    "Extension": {
+        "mode": "alpha",
+        "request_id": "26d83bbb-bb1d-4d8a-ba47-0b8520a6cd02",
+        "device_id": "D75A472C-9CD1-4BFF-949F-32F344E3FF65",
+        "device_model": "iPhone 14",
+        "os_version": "18.0.1",
+        "app_version": "3.6.19",
+        "sub_state": "",
+        "log_session_id": "d41e58e9-6a14-4998-84d2-fc3234eadab8",
+        "service": "RegisterCustomerApi",
+        "channel_app": "-",
+        "user_name": "c***@tisco.co.th",
+        "nmc_function": "tdrCheckEligibleMappingCardInfo",
+        "nmc_data_account_no": "1230014537",
+        "nmc_params": {
+            "deviceId": "b79bce9b-9309-4461-957b-2439ee6ae2a2",
+            "cardInfo": {
+                "register_bank_account_bt_st": "HIDE",
+                "new_topup_bt_st": "HIDE",
+                "card_type": "2",
+                "license_no": "xxxx11",
+                "brand": "ISUZU",
+                "model": "ISUZU SPACECAB SLX",
+                "province": "สุราษฎร์ธานี",
+                "account_no": "1230014537",
+                "client_no": "xxxx82",
+                "app_code": "RA",
+                "payment_info": {
+                    "is_overdue": true,
+                    "status": "Y",
+                    "status_msg": "Success",
+                    "min_due_date": "02/08/2023",
+                    "barcode": "|010753900017100\r206101513\r1230014537\r0000816000",
+                    "barcode_prefix": "|010753900017100\r206101513\r1230014537\r",
+                    "total_amt": "8,160.00",
+                    "ref1": "206101513",
+                    "ref2": "1230014537",
+                    "enabled_flag": "Y",
+                    "payment_lst": [
+                        {
+                            "group_type": "2",
+                            "name": "ค่างวดจำนำ/กู้เพิ่ม",
+                            "total_amt": "8,160.00",
+                            "detail_lst": [
+                                {
+                                    "key": "ยอดเรียกเก็บประจำเดือน 08/2023",
+                                    "value": "3,618.00"
+                                },
+                                {
+                                    "key": "ยอดเรียกเก็บประจำเดือน 09/2023",
+                                    "value": "4,542.00"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                "full_name": "xxxxxxxxxxxxxxxxxxxx7082",
+                "reserve_date1": "20211230",
+                "first_name": "xxxxxxx7082",
+                "last_name": "xxxxxxx7082",
+                "license_no_name": "xxxx11",
+                "chassis": "SV30-0169266",
+                "card_detail": {
+                    "license_no": "xxxx11",
+                    "brand": "ISUZU",
+                    "model": "ISUZU SPACECAB SLX",
+                    "province": "สุราษฎร์ธานี",
+                    "card_type": "2",
+                    "acc_lst": [
+                        {
+                            "appcode": "RA",
+                            "account": "1230014537",
+                            "client": "xxxx82",
+                            "accountSt": {},
+                            "consentFlag": {},
+                            "product_type": "LAAL"
+                        }
+                    ],
+                    "acc_rb_lst": [
+                        {
+                            "appcode": "RB",
+                            "account": "1280014295",
+                            "client": "xxxx82",
+                            "accountSt": "ครบกำหนดชำระ",
+                            "account_code": "O",
+                            "active_dte": "2023-07-13",
+                            "parent_account": "1230014537"
+                        },
+                        {
+                            "appcode": "RB",
+                            "account": "1280053002",
+                            "client": "xxxx82",
+                            "accountSt": "Active",
+                            "account_code": " ",
+                            "active_dte": "2023-08-16",
+                            "parent_account": "1230014537"
+                        }
+                    ],
+                    "card_key_unique": "dc60bf0c-1b7c-50d4-8ba6-5c38db26bdc7",
+                    "license_no_name": "xxxx11",
+                    "is_find_hp": false,
+                    "is_find_legal": false
+                },
+                "card_key_unique": "dc60bf0c-1b7c-50d4-8ba6-5c38db26bdc7",
+                "product_list_renew": [
+                    {
+                        "product_type": "LAAL_RA",
+                        "license_no": "xxxx11",
+                        "detail": {
+                            "last_instlmt_due_date": "11/08/2023",
+                            "account_no": "1230014537",
+                            "acc_status_code": "O",
+                            "acc_status_desc": "ครบกำหนดชำระ",
+                            "period": "121",
+                            "paid": "18",
+                            "last_close_account": {},
+                            "eligible_info": {
+                                "req_amount_bt_st": "HIDE",
+                                "available_debit": {},
+                                "available_debit_text": "-",
+                                "loan_eligible_st": "UNAVAILABLE",
+                                "credit_line_bt_st": "HIDE",
+                                "register_bank_account_bt_st": "HIDE"
+                            },
+                            "app_code": "RA",
+                            "due_day": "2",
+                            "due_date": {},
+                            "curr_mo_instlmt": "4,295.00",
+                            "outstanding_principal": "137,746.74",
+                            "interest_receive": "2,805.76",
+                            "fnc_amount_hsg_loan": "140,000.00",
+                            "available_debit_text": "-",
+                            "total_drawdown": "175,000.00",
+                            "outstanding_principal_origin": "137,746.74",
+                            "acc_status_desc_th": "ครบกำหนดชำระ",
+                            "is_display_status_code": true,
+                            "acc_status_desc_color": "red",
+                            "acc_status_type": "available"
+                        },
+                        "total_amt": "8,160.00",
+                        "min_due_date": "02/08/2023",
+                        "product_type_name": "สินเชื่อเพิ่มวงเงิน",
+                        "product_type_group": "วงเงินหมุนเวียน"
+                    },
+                    {
+                        "product_type": "INSURE",
+                        "license_no": "xxxx11",
+                        "detail": {
+                            "ins_comp_nm": "บริษัท เอไอเอ จำกัด",
+                            "ins_cvrd_dsc": "ประกันคุ้มครองสินเชื่อ (ALP)",
+                            "ins_tel_nbr": "xxxxx8888",
+                            "ins_polcy_nbr": "xxxxx0788",
+                            "ins_eff_exp_dt": "30/12/2021 - 29/03/2027",
+                            "ins_prm_amt": "0.00",
+                            "show_amt": "N",
+                            "ins_comp_code": "578",
+                            "ins_eff_dt": "30/12/2021",
+                            "ins_exp_dt": "29/03/2027",
+                            "ins_brokerage_code": "3805",
+                            "ins_brokerage_en_dsc": "HI-WAY COMPANY LIMITED",
+                            "ins_brokerage_th_dsc": "บริษัท ไฮเวย์ จำกัด",
+                            "ins_grp": "ALP",
+                            "ins_broker_name": "บริษัท ไฮเวย์ จำกัด",
+                            "ins_comp_image_url": "https://content.talpha.co/mycar/image/insure_comp/insure_comp_578.png",
+                            "insured_template": "Normal",
+                            "insured_remain_day": "1321"
+                        },
+                        "total_amt": "8,160.00",
+                        "min_due_date": "02/08/2023",
+                        "product_type_name": "INSURE",
+                        "product_type_group": "INSURE",
+                        "product_ins_key": "INSURE/ประกันคุ้มครองสินเชื่อ (ALP)"
+                    },
+                    {
+                        "product_type": "HISTORY",
+                        "license_no": "xxxx11",
+                        "detail": {
+                            "status": "Y",
+                            "status_msg": "Success",
+                            "history_lst": [
+                                {
+                                    "process_date": "12/07/2023",
+                                    "detail_lst": [
+                                        {
+                                            "key": "ค่าติดตามทวงถามหนี้",
+                                            "value": "53.00"
+                                        },
+                                        {
+                                            "key": "ค่างวด งวดที่ 18 #12XXXXXX95",
+                                            "value": "3,565.00"
+                                        }
+                                    ],
+                                    "history_total_amount": "3,618.00"
+                                }
+                            ],
+                            "account_lst": [
+                                {
+                                    "app_code": "RA",
+                                    "account_no": "1230014537",
+                                    "client_no": "xxxx82",
+                                    "property_type": "2"
+                                }
+                            ],
+                            "payment_info": {}
+                        },
+                        "total_amt": "8,160.00",
+                        "min_due_date": "02/08/2023",
+                        "product_type_name": "HISTORY",
+                        "product_type_group": "HISTORY"
+                    },
+                    {
+                        "product_type": "PDF",
+                        "license_no": "xxxx11",
+                        "detail": {},
+                        "total_amt": "8,160.00",
+                        "min_due_date": "02/08/2023",
+                        "product_type_name": "PDF",
+                        "product_type_group": "PDF"
+                    }
+                ],
+                "product_list_status": "200000",
+                "product_list_desc": "ทำรายการสำเร็จ",
+                "car_type": "Default",
+                "car_type_path": "https://content.talpha.co/mycar/image/car_card/Type_Default.png",
+                "insure_lst": [
+                    {
+                        "ins_comp_nm": "บริษัท เอไอเอ จำกัด",
+                        "ins_cvrd_dsc": "ประกันคุ้มครองสินเชื่อ (ALP)",
+                        "ins_tel_nbr": "xxxxx8888",
+                        "ins_polcy_nbr": "xxxxx0788",
+                        "ins_eff_exp_dt": "30/12/2021 - 29/03/2027",
+                        "ins_prm_amt": "0.00",
+                        "show_amt": "N",
+                        "ins_comp_code": "578",
+                        "ins_eff_dt": "30/12/2021",
+                        "ins_exp_dt": "29/03/2027",
+                        "ins_brokerage_code": "3805",
+                        "ins_brokerage_en_dsc": "HI-WAY COMPANY LIMITED",
+                        "ins_brokerage_th_dsc": "บริษัท ไฮเวย์ จำกัด",
+                        "ins_grp": "ALP",
+                        "ins_broker_name": "บริษัท ไฮเวย์ จำกัด",
+                        "ins_comp_image_url": "https://content.talpha.co/mycar/image/insure_comp/insure_comp_578.png",
+                        "insured_template": "Normal",
+                        "insured_remain_day": "1321"
+                    }
+                ],
+                "insure_status": "200000",
+                "insure_desc": "ทำรายการสำเร็จ"
+            }
+        }
+    },
+    "Message": "b79bce9b-9309-4461-957b-2439ee6ae2a2:tdrCheckEligibleMappingCardInfo: FINISH"
+}
