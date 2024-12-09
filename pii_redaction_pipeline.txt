@@ -1,0 +1,45 @@
+PUT _ingest/pipeline/pii_redaction_pipeline
+{
+  "description": "Detect and redact PII from incoming documents",
+  "processors": [
+    {
+      "gsub": {
+        "field": "extension_text",
+        "pattern": "\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b",
+        "replacement": "[REDACTED_EMAIL]",
+        "ignore_missing": true
+      }
+    },
+    {
+      "gsub": {
+        "field": "extension_text",
+        "pattern": "\\b\\d{3}-\\d{2}-\\d{4}\\b",  
+        "replacement": "[REDACTED_SSN]",
+        "ignore_missing": true
+      }
+    },
+    {
+      "gsub": {
+        "field": "extension_text",
+        "pattern": "\\b\\d{10}\\b",  
+        "replacement": "[REDACTED_PHONE]",
+        "ignore_missing": true
+      }
+    }
+  ]
+}
+
+
+POST /_ingest/pipeline/pii_redaction_pipeline/_simulate
+{
+  "docs": [
+        {
+      "_index": "my-index",
+      "_id": "1",
+      "_source": {
+        "extension_text": "Contact me at 123-45-6789 or john.doe@example.com tel=1234567890",
+        "other_field": "example data"
+      }
+    }
+  ]
+}
