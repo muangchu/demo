@@ -8,3 +8,31 @@ Write-host "`nWindows Hotfix"
 get-hotfix | Where-Object {$_.Description -eq 'Security Update'} | Sort-Object -Property InstalledOn -Descending 
 Start-Process "C:\Program Files (x86)\Trend Micro\Security Agent\PccNt.exe"
 ```
+
+
+```
+POST /transactions/_search
+{
+  "size": 0,
+  "aggs": {
+    "tps_per_second": {
+      "date_histogram": {
+        "field": "@timestamp",
+        "fixed_interval": "1s"
+      },
+      "aggs": {
+        "transactions_per_second": {
+          "value_count": {
+            "field": "transaction_id"
+          }
+        }
+      }
+    },
+    "max_tps": {
+      "max_bucket": {
+        "buckets_path": "tps_per_second>transactions_per_second"
+      }
+    }
+  }
+}
+```
