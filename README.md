@@ -36,3 +36,6 @@ POST /transactions/_search
   }
 }
 ```
+
+
+https://chatgpt.com/share/6798a23f-00a4-8012-a4ac-d77bed14f2c9
