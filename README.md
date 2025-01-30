@@ -39,3 +39,8 @@ POST /transactions/_search
 
 
 https://chatgpt.com/share/6798a23f-00a4-8012-a4ac-d77bed14f2c9
+
+
+fluent bit
+https://chatgpt.com/share/679b03c7-078c-8012-b49e-f4d78737dd32
+
