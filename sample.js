@@ -203,5 +203,52 @@ app.get('/debug-env', (req, res) => {
 
 
 
+const express = require('express');
+const axios = require('axios');
+const logger = require('winston');
+
+const app = express();
+
+app.get('/weather', async (req, res) => {
+  try {
+    const result = await axios.get('https://api.example.com/weather', {
+      headers: { Authorization: 'Bearer secret-api-token' }
+    });
+
+    // ❌ BAD PRACTICE: log response ตรง ๆ ทั้งก้อน
+    logger.info(`Weather API response: ${JSON.stringify(result.data)}`);
+
+    res.json(result.data);
+  } catch (err) {
+    logger.error('Failed to fetch weather data');
+    res.status(500).send('Failed');
+  }
+});
+
+
+
+
+const express = require('express');
+const app = express();
+const logger = require('winston');
+
+app.use((req, res, next) => {
+  // ❌ BAD PRACTICE: log header ทั้งก้อน
+  logger.info(`Request headers: ${JSON.stringify(req.headers)}`);
+  next();
+});
+
+app.get('/', (req, res) => {
+  res.send('Hello');
+});
+
+app.listen(3000, () => {
+  console.log('Server running');
+});
+
+
+
+
+
 
 
