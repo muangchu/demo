@@ -81,6 +81,26 @@ const user = await db.findUserByEmail(email);
 logger.info(`User found: ${JSON.stringify(user)}`);
 
 
+const express = require('express');
+const router = express.Router();
+const logger = require('winston');
+
+router.get('/profile', (req, res) => {
+  const authHeader = req.headers['authorization'];
+
+  // ❌ BAD PRACTICE: Log Authorization header ที่มี token จริง
+  logger.info(`Auth header: ${authHeader}`);
+
+  // สมมติว่า auth สำเร็จ
+  res.json({ username: 'john.doe' });
+});
+
+module.exports = router;
+
+
+
+
+
 ❌ 5. Logging environment variables
 // ❌ log config อาจรวมข้อมูลลับ เช่น database password, API key
 logger.info(`App config: ${JSON.stringify(process.env)}`);
