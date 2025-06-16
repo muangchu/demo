@@ -104,3 +104,61 @@ module.exports = router;
 ❌ 5. Logging environment variables
 // ❌ log config อาจรวมข้อมูลลับ เช่น database password, API key
 logger.info(`App config: ${JSON.stringify(process.env)}`);
+
+
+
+const express = require('express');
+const router = express.Router();
+const logger = require('winston');
+
+// สมมติว่ามี DB mock
+const fakeDB = {
+  findUserByEmail: async (email) => {
+    return {
+      id: 1,
+      fullName: 'Somchai Jaidee',
+      email: email,
+      passwordHash: '$2b$10$abc123...',
+      ssn: '123-45-6789',
+      accessToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+      createdAt: new Date()
+    };
+  }
+};
+
+router.get('/profile', async (req, res) => {
+  const email = req.query.email;
+
+  const user = await fakeDB.findUserByEmail(email);
+
+  // ❌ BAD PRACTICE: log ทั้ง object จาก DB โดยไม่ filter
+  logger.info(`Fetched user: ${JSON.stringify(user)}`);
+
+  res.json({ fullName: user.fullName, email: user.email });
+});
+
+module.exports = router;
+
+
+
+
+
+const express = require('express');
+const router = express.Router();
+const logger = require('winston');
+
+router.get('/profile', (req, res) => {
+  const authHeader = req.headers['authorization'];
+
+  // ❌ BAD PRACTICE: Log Authorization header ที่มี token จริง
+  logger.info(`Auth header: ${authHeader}`);
+
+  // สมมติว่า auth สำเร็จ
+  res.json({ username: 'john.doe' });
+});
+
+module.exports = router;
+
+
+
+
