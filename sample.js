@@ -1,0 +1,86 @@
+❌ ตัวอย่างโค้ดที่ log PII โดยไม่ตั้งใจ (Bad Practice)
+
+const express = require('express');
+const app = express();
+
+app.use(express.json());
+
+app.post('/register', (req, res) => {
+  const { name, email, phone, ssn } = req.body;
+
+  // ❌ ไม่ควร log ข้อมูลที่เป็น PII เช่น email, phone, ssn
+  console.log(`User registration: name=${name}, email=${email}, phone=${phone}, ssn=${ssn}`);
+
+  // จำลองการบันทึกลง DB
+  res.send('User registered successfully');
+});
+
+app.listen(3000, () => {
+  console.log('Server started on port 3000');
+});
+
+
+❌ Bad Example: ใช้ winston logger แล้ว log ข้อมูล PII โดยตรง
+const express = require('express');
+const winston = require('winston');
+const app = express();
+
+app.use(express.json());
+
+// ❌ Logger ที่ไม่มี filter หรือ masking
+const logger = winston.createLogger({
+  level: 'info',
+  transports: [
+    new winston.transports.Console()
+  ]
+});
+
+app.post('/signup', (req, res) => {
+  const { fullName, email, phone, password } = req.body;
+
+  // ❌ Bad: log ข้อมูลส่วนบุคคล (PII) และข้อมูลลับ
+  logger.info(`New user signup: fullName=${fullName}, email=${email}, phone=${phone}, password=${password}`);
+
+  res.send('Signup successful');
+});
+
+app.listen(3000, () => {
+  logger.info('Server is running on port 3000');
+});
+
+
+❌ 1. Logging ทั้ง request body โดยไม่ filter
+app.post('/payment', (req, res) => {
+  // ❌ request body อาจมีข้อมูลบัตรเครดิต
+  logger.info(`Request body: ${JSON.stringify(req.body)}`);
+  res.send('Payment processed');
+});
+
+
+❌ 2. Logging header ที่มี Authorization หรือ Cookie
+app.use((req, res, next) => {
+  // ❌ Authorization header มักมี JWT, API key, Basic auth
+  logger.debug(`Incoming headers: ${JSON.stringify(req.headers)}`);
+  next();
+});
+
+
+❌ 3. Logging error object ที่มี sensitive data
+try {
+  // code that fails
+  throw new Error('Database connection failed: password=123456');
+} catch (err) {
+  // ❌ log ทั้งข้อความที่มีรหัสผ่าน
+  logger.error(err.message);
+}
+
+
+❌ 4. Logging database result ที่ยังไม่ sanitize
+const user = await db.findUserByEmail(email);
+// ❌ log ทั้ง user object ซึ่งอาจมี password hash หรือ token
+logger.info(`User found: ${JSON.stringify(user)}`);
+
+
+❌ 5. Logging environment variables
+// ❌ log config อาจรวมข้อมูลลับ เช่น database password, API key
+logger.info(`App config: ${JSON.stringify(process.env)}`);
