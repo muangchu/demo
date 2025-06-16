@@ -161,4 +161,34 @@ module.exports = router;
 
 
 
+const express = require('express');
+const router = express.Router();
+const logger = require('winston');
+
+router.post('/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    // จำลอง error ที่เกิดขึ้นจากระบบ auth ภายนอก
+    throw {
+      message: 'Authentication failed',
+      code: 'AUTH_ERROR',
+      status: 401,
+      debug: {
+        username,
+        password, // ❌ password หลุดมาพร้อม error
+        ip: req.ip,
+        headers: req.headers // ❌ บางทีมี Authorization, Cookie
+      }
+    };
+  } catch (err) {
+    // ❌ BAD PRACTICE: log error object ทั้งก้อนแบบ raw
+    logger.error(`Login error: ${JSON.stringify(err)}`);
+
+    res.status(401).send('Login failed');
+  }
+});
+
+
+
 
