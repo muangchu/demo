@@ -191,4 +191,17 @@ router.post('/login', async (req, res) => {
 
 
 
+const express = require('express');
+const app = express();
+const logger = require('winston');
+
+app.get('/debug-env', (req, res) => {
+  // ❌ BAD PRACTICE: log ทุก env ตัวแปร
+  logger.info(`Environment: ${JSON.stringify(process.env)}`);
+  res.send('Logged environment');
+});
+
+
+
+
 
